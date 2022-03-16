@@ -11,17 +11,15 @@
 
     "I hate doing this twice", well this is why I made this.
 
-# External Dependencies:
-    - GLAD: default C/C++ glad library, use this permalink:
-        https://glad.dav1d.de/#language=c&specification=gl&api=gl%3D4.3&api=gles1%3Dnone&api=gles2%3Dnone&api=glsc2%3Dnone&profile=compatibility&loader=on
 # included libraries in package:
-    1 - emaths.h        - v1.0 or higher
-    2 - stb_rect_pack   - v1.01 or higher
-    3 - stb_image       - v2.26 or higher
-    4 - stb_truetype    - v1.26 or higher
+    1 - emaths.h        - v1.0  or higher by: Wassimulator
+    2 - stb_rect_pack   - v1.01 or higher by: Sean Barrett
+    3 - stb_image       - v2.26 or higher by: Sean Barrett
+    4 - stb_truetype    - v1.26 or higher by: Sean Barrett
 
 # Important notes:
-    - #include "glad.c" in your solution before this.
+    - Include OpenGL headers and load OpenGL functions with glad or otherwise before including this file, 
+      here's a permalink to save you the trouble: https://glad.dav1d.de/#language=c&specification=gl&api=gl%3D4.3&api=gles1%3Dnone&api=gles2%3Dnone&api=glsc2%3Dnone&profile=compatibility&loader=on
     - SymplyRend calls gladLoadGL() for you, you don't need to call it manually.
     - Call SR_Init() before using any other functions.
     - Call SR_StartFrame() at the beginning of each frame.
@@ -36,7 +34,7 @@
     - WindwWidth and WindowHeight are the window size, they can be changed at any time.
       The distinction is there to allow for window resizing while maintaining realtive
       positions.
-    - you need to handle displaying the frame, whether with SDL or otherwise, Window management 
+    - you need to handle displaying the frame, whether with SDL or otherwise, Window management
       is not included in SimplyRend.
 
 # Usage:
@@ -461,9 +459,9 @@ unsigned long int SR_CreateProgram(const char *VertexCode, const char *FragmentC
  - MaxRects: Assign maximum number of rectangles extimated to be used as an upper bound,
  The larger MaxRects, the larger the RAM usage.
  - FrameWidth and FrameHeight are the dimensions of the framebuffer, these should be constant. */
-void SR_Init(unsigned long long int MaxRects, int FrameWidth, int FrameHeight)
+void SR_Init(unsigned long long int MaxRects, int FrameWidth, int FrameHeight, int  (*load_opengl)(void))
 {
-    gladLoadGL();
+    load_opengl();
     memset(&simplyrend_context, 0, sizeof(SR_Context));
     SR_Context *O = &simplyrend_context;
 
@@ -1642,7 +1640,7 @@ int SR_FindFontSizeIndex(unsigned long int FontID, int size)
     return result;
 }
 // Render a string of text to the screen using a font index (returned when you call SR_LoadFont())
-// the size is ther desired size of the font, as per the defined list of sizes at SR_LoadFont(), if the passed size 
+// the size is ther desired size of the font, as per the defined list of sizes at SR_LoadFont(), if the passed size
 // is not in the list, the next smaller size will be used.
 void SR_PushText(unsigned long int FontID, SR_Color Color, int size, SR_PointF Dest, char *Text, ...)
 {
