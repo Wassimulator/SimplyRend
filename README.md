@@ -1,5 +1,4 @@
   # SimplyRend
-        v1.1
     by: Wassimulator
 
     Using OpenGL Version: 4.3
@@ -16,7 +15,7 @@
     3 - stb_image       - v2.26 or higher by: Sean Barrett
     4 - stb_truetype    - v1.26 or higher by: Sean Barrett
 
-## Important notes:
+### Important notes:
     - Include OpenGL headers and load OpenGL functions with glad or otherwise before including this file, 
       here's a permalink to save you the trouble: https://glad.dav1d.de/#language=c&specification=gl&api=gl%3D4.3&api=gles1%3Dnone&api=gles2%3Dnone&api=glsc2%3Dnone&profile=compatibility&loader=on
     - SymplyRend calls gladLoadGL() for you, you don't need to call it manually.
