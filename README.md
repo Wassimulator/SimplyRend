@@ -10,10 +10,10 @@
     "I hate doing this twice", well this is why I made this.
 
 ## included libraries in package:
-    1 - emaths.h        - v1.0  or higher by: Wassimulator
-    2 - stb_rect_pack   - v1.01 or higher by: Sean Barrett
-    3 - stb_image       - v2.26 or higher by: Sean Barrett
-    4 - stb_truetype    - v1.26 or higher by: Sean Barrett
+    1 - emaths.h        - v1.0  by: Wassimulator
+    2 - stb_rect_pack   - v1.01 by: Sean Barrett
+    3 - stb_image       - v2.26 by: Sean Barrett
+    4 - stb_truetype    - v1.26 by: Sean Barrett
 
 ### Important notes:
     - Include OpenGL headers and load OpenGL functions with glad or otherwise before including this file, 
