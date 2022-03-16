@@ -15,10 +15,10 @@
     - GLAD: default C/C++ glad library, use this permalink:
         https://glad.dav1d.de/#language=c&specification=gl&api=gl%3D4.3&api=gles1%3Dnone&api=gles2%3Dnone&api=glsc2%3Dnone&profile=compatibility&loader=on
 # included libraries in package:
-    1 - emaths.h        - v1.0  or higher  by: Wassimulator
-    2 - stb_rect_pack   - v1.01 or higher  by: Sean Barrett
-    3 - stb_image       - v2.26 or higher  by: Sean Barrett
-    4 - stb_truetype    - v1.26 or higher  by: Sean Barrett
+    1 - emaths.h        - v1.0 or higher
+    2 - stb_rect_pack   - v1.01 or higher
+    3 - stb_image       - v2.26 or higher
+    4 - stb_truetype    - v1.26 or higher
 
 # Important notes:
     - #include "glad.c" in your solution before this.
@@ -73,8 +73,6 @@
       Render functions have multiple versions and can accept different parameters.
 
     - custom shader creation is still in development.
-
-    - Copyright info at the bottom.
 
 All relative functions and structs start with the prefix "SR_"
 All Render related functions start with the prefix "SR_Push"
@@ -814,13 +812,13 @@ Emaths::v2 SR_PixelToGL(Emaths::v2 Point)
     return Res;
 }
 
-Emaths::v2 UV_to_GL(Emaths::v2 Origin, int w, int h, float uv_x, float uv_y)
+Emaths::v2 SR_UV_to_GL(Emaths::v2 Origin, int w, int h, float uv_x, float uv_y)
 {
     SR_Context *O = &simplyrend_context;
     int MAX = O->max_texture_dimension;
     return (Origin + Emaths::v2(0.5, 0.5) + Emaths::v2((w - 1) * uv_x, (h - 1) * uv_y)) / (MAX);
 }
-Emaths::v2 UV_to_GL(Emaths::v2 Origin, int w, int h, float uv_x, float uv_y, int MAX)
+Emaths::v2 SR_UV_to_GL(Emaths::v2 Origin, int w, int h, float uv_x, float uv_y, int MAX)
 {
     SR_Context *O = &simplyrend_context;
     return (Origin + Emaths::v2(0.5, 0.5) + Emaths::v2((w - 1) * uv_x, (h - 1) * uv_y)) / (MAX);
@@ -1015,13 +1013,13 @@ void SR_BufferRect_Font(SR_Font *Font, const SR_RectF *SrcRect, const SR_RectF *
         H = (float)SrcRect->h;
     }
 
-    ROT->R[ROT->Count].V[0].UV = UV_to_GL(Origin, W, H, 0, 1, 500);
-    ROT->R[ROT->Count].V[1].UV = UV_to_GL(Origin, W, H, 1, 1, 500);
-    ROT->R[ROT->Count].V[2].UV = UV_to_GL(Origin, W, H, 0, 0, 500);
+    ROT->R[ROT->Count].V[0].UV = SR_UV_to_GL(Origin, W, H, 0, 1, 500);
+    ROT->R[ROT->Count].V[1].UV = SR_UV_to_GL(Origin, W, H, 1, 1, 500);
+    ROT->R[ROT->Count].V[2].UV = SR_UV_to_GL(Origin, W, H, 0, 0, 500);
 
-    ROT->R[ROT->Count].V[3].UV = UV_to_GL(Origin, W, H, 0, 0, 500);
-    ROT->R[ROT->Count].V[4].UV = UV_to_GL(Origin, W, H, 1, 1, 500);
-    ROT->R[ROT->Count].V[5].UV = UV_to_GL(Origin, W, H, 1, 0, 500);
+    ROT->R[ROT->Count].V[3].UV = SR_UV_to_GL(Origin, W, H, 0, 0, 500);
+    ROT->R[ROT->Count].V[4].UV = SR_UV_to_GL(Origin, W, H, 1, 1, 500);
+    ROT->R[ROT->Count].V[5].UV = SR_UV_to_GL(Origin, W, H, 1, 0, 500);
 
     float r = ModColor.r;
     float g = ModColor.g;
@@ -1105,12 +1103,12 @@ void SR_BufferRect_Texture(SR_Sprite *Sprite, const SR_RectF *SrcRect, const SR_
         H = (float)SrcRect->h;
     }
 
-    ROT->R[ROT->Count].V[0].UV = UV_to_GL(Origin, W, H, 0, 1);
-    ROT->R[ROT->Count].V[1].UV = UV_to_GL(Origin, W, H, 1, 1);
-    ROT->R[ROT->Count].V[2].UV = UV_to_GL(Origin, W, H, 0, 0);
-    ROT->R[ROT->Count].V[3].UV = UV_to_GL(Origin, W, H, 0, 0);
-    ROT->R[ROT->Count].V[4].UV = UV_to_GL(Origin, W, H, 1, 1);
-    ROT->R[ROT->Count].V[5].UV = UV_to_GL(Origin, W, H, 1, 0);
+    ROT->R[ROT->Count].V[0].UV = SR_UV_to_GL(Origin, W, H, 0, 1);
+    ROT->R[ROT->Count].V[1].UV = SR_UV_to_GL(Origin, W, H, 1, 1);
+    ROT->R[ROT->Count].V[2].UV = SR_UV_to_GL(Origin, W, H, 0, 0);
+    ROT->R[ROT->Count].V[3].UV = SR_UV_to_GL(Origin, W, H, 0, 0);
+    ROT->R[ROT->Count].V[4].UV = SR_UV_to_GL(Origin, W, H, 1, 1);
+    ROT->R[ROT->Count].V[5].UV = SR_UV_to_GL(Origin, W, H, 1, 0);
 
     float r = ModColor.r;
     float g = ModColor.g;
@@ -1685,6 +1683,7 @@ void SR_PushText(unsigned long int FontID, SR_Color Color, int size, SR_PointF D
     }
     delete[] cstr;
 }
+
 /*
 MIT License
 Copyright (c) 2017 Wassim Alhajomar / Mahmoud Wasim Alhaj Omar. @Wassimulator.
