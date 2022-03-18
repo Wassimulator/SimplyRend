@@ -1,6 +1,6 @@
 /*
     ## SimplyRend ##
-        v1.1
+        v1.2
     by: Wassimulator
 
     Using OpenGL Version: 4.3
@@ -18,7 +18,7 @@
     4 - stb_truetype    - v1.26 or higher by: Sean Barrett
 
 # Important notes:
-    - Include OpenGL headers and load OpenGL functions with glad or otherwise before including this file, 
+    - Include OpenGL headers and load OpenGL functions with glad or otherwise before including this file,
       here's a permalink to save you the trouble: https://glad.dav1d.de/#language=c&specification=gl&api=gl%3D4.3&api=gles1%3Dnone&api=gles2%3Dnone&api=glsc2%3Dnone&profile=compatibility&loader=on
     - SymplyRend calls gladLoadGL() for you, you don't need to call it manually.
     - Call SR_Init() before using any other functions.
@@ -52,7 +52,7 @@
         - SR_PushLine()                 // draws a two point line
         - SR_PushLines()                // draws a multiple point line
         - SR_PushText()                 // renders text
-        - SR_PushRenderLayer()          // starts a new render layer
+        - SR_PushLayer()                // starts a new render layer
         - SR_Render()                   // renders the current frame using all collected data
 
          more info at functions definitions. Search for the names.
@@ -104,6 +104,31 @@ this is till work in progress and bugs may occur, as features get added. It is i
 
 ///////////////////////////////////////////////////////////////////////////////
 // Data structures:
+typedef unsigned long long SR_uint;
+struct SR_Point;
+struct SR_PointF;
+struct SR_Rect;
+struct SR_RectF;
+struct SR_Color;
+struct SR_Sprite;
+struct SR_Sprites;
+struct SR_Vertex;
+struct SR_ObjectRects;
+struct SR_ObjectLines;
+struct SR_RenderLayer;
+struct SR_RenderLayers;
+struct SR_Uniform;
+struct SR_Uniforms;
+struct SR_Program;
+struct SR_Programs;
+enum SR_Uniform_type;
+struct SR_Texture;
+struct SR_Textures;
+struct SR_Font;
+struct SR_Fonts;
+struct SR_Debug;
+struct SR_Buffer;
+struct SR_Buffers;
 
 typedef struct SR_Point
 {
@@ -150,7 +175,7 @@ typedef struct SR_Sprite
 {
     int w, h, n;
     int x, y;
-    unsigned long int texture_id;
+    SR_Texture *texture;
     unsigned char *PixelsRGBA;
     SR_Color ModColor;
     int frames;
@@ -200,33 +225,52 @@ typedef struct SR_ObjectLines
     int *render_layer_index;
     int Count;
 } SR_ol;
+typedef struct SR_RenderLayer
+{
+    struct scissor
+    {
+        bool on = false;
+        SR_Rect rect;
+    };
+    struct postprocess
+    {
+        bool on = false;
+        SR_Buffer *Origin;
+        SR_Buffer *Target;
+        SR_Program *Program;
+    };
+    SR_Buffer *Target;
+    scissor Clip;
+    postprocess PP;
+    SR_Texture *texture;
+} SR_RenderLayer;
 
 typedef struct SR_RenderLayers
 {
-    struct render_layer
-    {
-        struct scissor
-        {
-            bool on;
-            SR_Rect rect;
-        };
-        scissor Clip;
-        GLuint *Shader;
-        int texture_ID;
-    };
+    SR_Texture *last_tex_ptr = nullptr;
+    bool persistent_target_on = false;
+    SR_Buffer *persistent_target;
 
-    int last_tex_id = -1;
-
-    render_layer *L;
+    SR_RenderLayer *L;
     int count;
     int index;
 } SR_RenderLayers;
 
+typedef enum SR_Uniform_type
+{
+    SR_UNIFORM_INT,
+    SR_UNIFORM_UINT,
+    SR_UNIFORM_FLOAT
+} SR_Uniform_type;
+
 typedef struct SR_Uniform
 {
     char *Name;
+    void *Data;
+    int Count;
+    SR_Uniform_type Type;
     GLuint Location;
-    unsigned long int ID;
+    SR_uint ID;
 } SR_Uniform;
 
 typedef struct SR_Uniforms
@@ -235,36 +279,36 @@ typedef struct SR_Uniforms
     int Count;
 } SR_Uniforms;
 
-typedef struct SR_Shader
+typedef struct SR_Program
 {
-    unsigned long int ID;
-    GLuint Program;
+    SR_uint ID;
+    GLuint glID;
     GLuint Vertex;
     GLuint Fragment;
     SR_Uniforms Uniforms;
-} SR_Shader;
+} SR_Program;
 
-typedef struct SR_Shaders
+typedef struct SR_Programs
 {
-    SR_Shader *S;
-    unsigned long int Count;
-} SR_Shaders;
+    SR_Program *P;
+    SR_uint Count;
+} SR_Programs;
 
 typedef struct SR_Texture
 {
     GLuint glID;
-    unsigned long int ID;
+    SR_uint ID;
 } SR_Texture;
 
 typedef struct SR_Textures
 {
     SR_Texture *T;
-    unsigned long int Count;
+    SR_uint Count;
 } SR_Textures;
 
 typedef struct SR_Font
 {
-    unsigned long int ID;
+    SR_uint ID;
     SR_Sprite *Sprite;
     int *sizes;
     stbtt_packedchar **CharData;
@@ -281,22 +325,48 @@ typedef struct SR_Font
 typedef struct SR_Fonts
 {
     SR_Font *F;
-    unsigned long int Count;
+    SR_uint Count;
 } SR_Fonts;
+
+typedef struct SR_Debug
+{
+    SR_uint buffered_data_size = 0;
+    int draw_calls = 0;
+} SR_Debug;
+
+typedef struct SR_Buffer
+{
+    GLuint VBO;
+    GLuint VAO;
+
+    GLuint FBO;
+    SR_Sprite *Sprite;
+    SR_or::glrect Rect;
+    int W, H;
+    int ID;
+} SR_Buffer;
+
+typedef struct SR_Buffers
+{
+    SR_Buffer *B;
+    SR_uint Count;
+} SR_Buffers;
 
 typedef struct SR_Context
 {
-    unsigned long int max_texture_dimension; // corresponds to, but is not necessarily equal to: GL_MAX_TEXTURE_SIZE
+    SR_uint max_texture_dimension; // corresponds to, but is not necessarily equal to: GL_MAX_TEXTURE_SIZE
 
     SR_ObjectRects Rects;
     SR_ObjectRects TexRects;
     SR_ObjectLines Lines;
     SR_RenderLayers Layers;
-    SR_Shaders Shaders;
+    SR_Programs Programs;
     SR_Textures Textures;
     SR_Fonts Fonts;
-
     SR_Sprites Sprites;
+    SR_Buffers Buffers;
+
+    SR_Debug Debug;
 
     int FrameWidth;
     int FrameHeight;
@@ -306,7 +376,10 @@ typedef struct SR_Context
 
     int z_index = 0;
 
+    bool startframe = false;
+
     SR_Color DrawColor;
+    SR_ObjectRects::glrect ScreenRect;
 
 } SR_Context;
 
@@ -336,65 +409,17 @@ SR_Color SR_Color_i(int r, int g, int b, int a)
     C.a = a / 255.0f;
     return C;
 }
-// since this uses OpenGL, the z order is important and pushing the render layer guarantees a seperate draw call from that point forward
-void SR_PushRenderLayer()
-{
-    // if (G->OpenGL.render_layer_index < MAX_RENDER_LAYERS)
-    SR_Context *O = &simplyrend_context;
-    O->Layers.index++;
-    int layer = O->Layers.index;
-    if (O->Layers.index >= O->Layers.count)
-    {
-        O->Layers.count++;
-        O->Layers.L = (SR_RenderLayers::render_layer *)realloc(O->Layers.L, O->Layers.count * sizeof(SR_RenderLayers::render_layer));
-        O->Rects.render_layer_index = (int *)realloc(O->Rects.render_layer_index, O->Layers.count * sizeof(int));
-        O->TexRects.render_layer_index = (int *)realloc(O->TexRects.render_layer_index, O->Layers.count * sizeof(int));
-        O->Lines.render_layer_index = (int *)realloc(O->Lines.render_layer_index, O->Layers.count * sizeof(int));
-    }
-    O->Layers.last_tex_id = -1;
-
-    O->Rects.render_layer_index[layer] = O->Rects.Count;
-    O->TexRects.render_layer_index[layer] = O->TexRects.Count;
-    O->Lines.render_layer_index[layer] = O->Lines.Count;
-}
-
-// call this at the beginning of every frame within the program loop, you may change the window width and height
-// the change should reflect window resizing in the window context controlled by you outside this library
-void SR_StartFrame(int WindowWidth, int WindowHeight)
-{
-    SR_Context *O = &simplyrend_context;
-    SR_PushRenderLayer();
-    O->Layers.index = 0;
-
-    O->WindowWidth = WindowWidth;
-    O->WindowHeight = WindowHeight;
-
-    O->Rects.Count = 0;
-    O->TexRects.Count = 0;
-    O->Lines.Count = 0;
-    O->z_index = 1 << 15;
-    O->Layers.index = 0;
-    O->Layers.last_tex_id = -1;
-
-    for (int i = 0; i < O->Layers.count; i++)
-    {
-        O->Rects.render_layer_index[i] = 0;
-        O->TexRects.render_layer_index[i] = 0;
-        O->Lines.render_layer_index[i] = 0;
-        O->Layers.L[i].Clip.on = false;
-    }
-}
 
 // creates and pushes a new render program onto the array heap of programs:
-unsigned long int SR_CreateProgram(const char *VertexCode, const char *FragmentCode)
+SR_Program *SR_CreateProgram(const char *VertexCode, const char *FragmentCode)
 {
     SR_Context *O = &simplyrend_context;
-    int result = -1;
+    SR_Program *result = nullptr;
 
-    O->Shaders.S = (SR_Shader *)realloc(O->Shaders.S, sizeof(SR_Shader) * (O->Shaders.Count + 1));
-    SR_Shader *S = &O->Shaders.S[O->Shaders.Count];
-    int id = O->Shaders.Count;
-    O->Shaders.Count++;
+    SR_Program *P = &O->Programs.P[O->Programs.Count];
+    memset(P, 0, sizeof(SR_Program));
+    int id = O->Programs.Count;
+    O->Programs.Count++;
 
     GLuint Pipeline = glCreateProgram();
     GLuint VertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -441,29 +466,262 @@ unsigned long int SR_CreateProgram(const char *VertexCode, const char *FragmentC
     }
     if (!error)
     {
-        S->Program = Pipeline;
-        S->Vertex = VertexShader;
-        S->Fragment = FragmentShader;
-        S->ID = id;
-        result = S->ID;
+        P->glID = Pipeline;
+        P->Vertex = VertexShader;
+        P->Fragment = FragmentShader;
+        P->ID = id;
+        result = P;
     }
     else
     {
-        O->Shaders.Count--;
+        O->Programs.Count--;
     }
 
     return result;
+}
+/*
+Generate an SR_Target object and returns its ID. The SR_Target is linked to a texture and a frame buffer object that
+get generated using this call.
+Call this once per target at the beginning of the program after initializing the library.
+There is no Target destruction function yet as per this version of the library.
+*/
+SR_Buffer *SR_CreateTarget(SR_RectF *Rect)
+{
+    SR_Context *O = &simplyrend_context;
+
+    SR_Sprite *S = &O->Sprites.S[O->Sprites.Count];
+    int sprite_id = O->Sprites.Count;
+
+    SR_Buffer *B = &O->Buffers.B[O->Buffers.Count];
+    int target_id = O->Buffers.Count;
+
+    SR_Texture *Target_texture = &O->Textures.T[O->Textures.Count];
+    int texture_id = O->Textures.Count;
+
+    // Target has a pointer to a sprite which has a texture id of the target.
+    // Target --> Sprite --> Texture_ID
+
+    B->Sprite = S;
+    B->ID = target_id;
+    S->ID = sprite_id;
+    S->texture = Target_texture;
+    float x, y, w, h;
+    if (Rect)
+    {
+        x = Rect->x;
+        y = Rect->y;
+        w = Rect->w;
+        h = Rect->h;
+
+        B->W = w;
+        B->H = h;
+
+        B->Rect.V[0].P = Emaths::v2(x, y);
+        B->Rect.V[1].P = Emaths::v2(x + w, y);
+        B->Rect.V[2].P = Emaths::v2(x, y + h);
+        B->Rect.V[3].P = Emaths::v2(x, y + h);
+        B->Rect.V[4].P = Emaths::v2(x + w, y);
+        B->Rect.V[5].P = Emaths::v2(x + w, y + h);
+
+        B->Rect.V[0].UV = Emaths::v2(0, 1);
+        B->Rect.V[1].UV = Emaths::v2(1, 1);
+        B->Rect.V[2].UV = Emaths::v2(0, 0);
+        B->Rect.V[3].UV = Emaths::v2(0, 0);
+        B->Rect.V[4].UV = Emaths::v2(1, 1);
+        B->Rect.V[5].UV = Emaths::v2(1, 0);
+    }
+    else
+    {
+        w = O->FrameWidth;
+        h = O->FrameHeight;
+        B->W = O->FrameWidth;
+        B->H = O->FrameHeight;
+        B->Rect = O->ScreenRect;
+    }
+
+    bool success = false;
+
+    // if (O->Buffers.Count > 0)
+    {
+        glGenVertexArrays(1, &B->VAO);
+        glBindVertexArray(B->VAO);
+        glGenBuffers(1, &B->VBO);
+        glBindBuffer(GL_ARRAY_BUFFER, B->VBO);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, P));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, C));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 1, GL_INT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
+        glBufferData(GL_ARRAY_BUFFER, sizeof(SR_ObjectRects::glrect) * 1, NULL, GL_STREAM_DRAW);
+
+        glGenFramebuffers(1, &B->FBO);
+        glGenTextures(1, &Target_texture->glID);
+        glBindFramebuffer(GL_FRAMEBUFFER, B->FBO);
+        glBindTexture(GL_TEXTURE_2D, Target_texture->glID);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, Target_texture->glID, 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
+            success = true;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+    // else
+    //     success = true;
+
+    O->Sprites.Count++;
+    O->Textures.Count++;
+    O->Buffers.Count++;
+
+    return success ? B : nullptr;
+}
+
+void SR_SetTarget(SR_Buffer *Target, bool persistent)
+{
+    SR_Context *O = &simplyrend_context;
+    O->Layers.L[O->Layers.index].Target = Target;
+    O->Layers.persistent_target_on = persistent;
+    O->Layers.persistent_target = Target;
+}
+
+SR_Texture *SR_GetBufferText(SR_Buffer *Target)
+{
+    SR_Texture *result = nullptr;
+    if (Target != 0)
+    {
+        SR_Context *O = &simplyrend_context;
+        result = Target->Sprite->texture;
+    }
+    return result;
+}
+GLuint SR_GetBufferFBO(SR_Buffer *Target)
+{
+    GLuint result = 0;
+    if (Target != 0)
+    {
+        SR_Context *O = &simplyrend_context;
+        result = Target->FBO;
+    }
+    return result;
+}
+
+// since this uses OpenGL, the z order is important and pushing the render layer guarantees a seperate draw call from that point forward.
+// This also resets the render target to the screen.
+int SR_PushLayer()
+{
+    SR_Context *O = &simplyrend_context;
+    O->Layers.index++;
+    int layer = O->Layers.index;
+    if (O->Layers.index >= O->Layers.count)
+    {
+        O->Layers.count++;
+        O->Layers.L = (SR_RenderLayer *)realloc(O->Layers.L, O->Layers.count * sizeof(SR_RenderLayer));
+        O->Rects.render_layer_index = (int *)realloc(O->Rects.render_layer_index, O->Layers.count * sizeof(int));
+        O->TexRects.render_layer_index = (int *)realloc(O->TexRects.render_layer_index, O->Layers.count * sizeof(int));
+        O->Lines.render_layer_index = (int *)realloc(O->Lines.render_layer_index, O->Layers.count * sizeof(int));
+    }
+    O->Layers.last_tex_ptr = nullptr;
+
+    O->Rects.render_layer_index[layer] = O->Rects.Count;
+    O->TexRects.render_layer_index[layer] = O->TexRects.Count;
+    O->Lines.render_layer_index[layer] = O->Lines.Count;
+
+    if (O->startframe)
+    {
+        O->Layers.L[layer].Target = nullptr;
+        O->Layers.L[layer].Clip.on = 0;
+        O->Layers.L[layer].PP.on = 0;
+    }
+    if (O->Layers.persistent_target_on)
+    {
+        O->Layers.L[layer].Target = O->Layers.persistent_target;
+    }
+
+    return layer;
+}
+
+// call this at the beginning of every frame within the program loop, you may change the window width and height
+// the change should reflect window resizing in the window context controlled by you outside this library
+void SR_StartFrame(int WindowWidth, int WindowHeight)
+{
+    SR_Context *O = &simplyrend_context;
+    O->startframe = false;
+    SR_PushLayer();
+    O->Layers.index = 0;
+    SR_SetTarget(0, false);
+    O->startframe = true;
+
+    O->WindowWidth = WindowWidth;
+    O->WindowHeight = WindowHeight;
+
+    O->Rects.Count = 0;
+    O->TexRects.Count = 0;
+    O->Lines.Count = 0;
+    O->z_index = 1 << 15;
+    O->Layers.index = 0;
+    O->Layers.last_tex_ptr = nullptr;
+
+    for (int i = 0; i < O->Layers.count; i++)
+    {
+        O->Rects.render_layer_index[i] = 0;
+        O->TexRects.render_layer_index[i] = 0;
+        O->Lines.render_layer_index[i] = 0;
+        O->Layers.L[i].Clip.on = false;
+        O->Layers.L[i].PP.on = false;
+        O->Layers.L[i].Target = nullptr;
+    }
+}
+void SR_InitScreenRect()
+{
+    SR_Context *O = &simplyrend_context;
+
+    SR_ObjectRects::glrect Screen;
+    float x = -1;
+    float y = -1;
+    float w = 2;
+    float h = 2;
+
+    Screen.V[0].P = Emaths::v2(x, y);
+    Screen.V[1].P = Emaths::v2(x + w, y);
+    Screen.V[2].P = Emaths::v2(x, y + h);
+    Screen.V[3].P = Emaths::v2(x, y + h);
+    Screen.V[4].P = Emaths::v2(x + w, y);
+    Screen.V[5].P = Emaths::v2(x + w, y + h);
+
+    Screen.V[0].UV = Emaths::v2(0, 1);
+    Screen.V[1].UV = Emaths::v2(1, 1);
+    Screen.V[2].UV = Emaths::v2(0, 0);
+    Screen.V[3].UV = Emaths::v2(0, 0);
+    Screen.V[4].UV = Emaths::v2(1, 1);
+    Screen.V[5].UV = Emaths::v2(1, 0);
+
+    for (int i = 0; i < 6; i++)
+    {
+        Screen.V[i].C.r = 1;
+        Screen.V[i].C.g = 1;
+        Screen.V[i].C.b = 1;
+        Screen.V[i].C.a = 1;
+        Screen.V[i].Z = O->z_index;
+    }
+    O->z_index -= (1 << 9);
+
+    O->ScreenRect = Screen;
 }
 
 /* Initializes the OpenGL context and the relevant data structures for SimplyRend,
  - MaxRects: Assign maximum number of rectangles extimated to be used as an upper bound,
  The larger MaxRects, the larger the RAM usage.
  - FrameWidth and FrameHeight are the dimensions of the framebuffer, these should be constant. */
-void SR_Init(unsigned long long int MaxRects, int FrameWidth, int FrameHeight, int  (*load_opengl)(void))
+void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int (*load_opengl)(void))
 {
     load_opengl();
     memset(&simplyrend_context, 0, sizeof(SR_Context));
     SR_Context *O = &simplyrend_context;
+
+    SR_InitScreenRect();
 
     O->FrameWidth = FrameWidth;
     O->FrameHeight = FrameHeight;
@@ -477,6 +735,11 @@ void SR_Init(unsigned long long int MaxRects, int FrameWidth, int FrameHeight, i
     O->TexRects.R = (SR_or::glrect *)malloc(sizeof(SR_or::glrect) * MaxRects);
     O->Lines.L = (SR_ol::glline *)malloc(sizeof(SR_ol::glline) * MaxRects);
     O->Sprites.S = (SR_Sprite *)realloc(O->Sprites.S, sizeof(SR_Sprite) * (MaxRects));
+
+    O->Textures.T = (SR_Texture *)realloc(O->Textures.T, sizeof(SR_Texture) * (100));
+    O->Buffers.B = (SR_Buffer *)realloc(O->Buffers.B, sizeof(SR_Buffer) * (100));
+    O->Fonts.F = (SR_Font *)realloc(O->Fonts.F, sizeof(SR_Font) * (100));
+    O->Programs.P = (SR_Program *)realloc(O->Programs.P, sizeof(SR_Program) * (100));
 
     // assign attributes to the vertex buffers:
     glGenVertexArrays(1, &O->Rects.VAO);
@@ -583,20 +846,22 @@ void SR_Init(unsigned long long int MaxRects, int FrameWidth, int FrameHeight, i
     )###"};
     SR_CreateProgram(VertexShaders[0], FragmentShaders[0]); // 1st program for colored rendering
     SR_CreateProgram(VertexShaders[1], FragmentShaders[1]); // 2nd program for textured rendering
+
+    SR_CreateTarget(0); // create the default target: the screen
 }
 
-unsigned long int SR_GenerateUniform(unsigned long int shader_id, char *Name)
+SR_uint SR_GenerateUniform(SR_uint program_id, const char *Name, void *Data, int count, SR_Uniform_type Type)
 {
-    unsigned long int result = -1;
+    SR_uint result = -1;
     SR_Context *O = &simplyrend_context;
-    SR_Shader *S = &O->Shaders.S[shader_id];
+    SR_Program *P = &O->Programs.P[program_id];
 
-    S->Uniforms.U = (SR_Uniform *)realloc(S->Uniforms.U, sizeof(SR_Uniform) * (S->Uniforms.Count + 1));
-    SR_Uniform *U = &S->Uniforms.U[S->Uniforms.Count];
-    unsigned long int id = S->Uniforms.Count;
-    S->Uniforms.Count++;
+    P->Uniforms.U = (SR_Uniform *)realloc(P->Uniforms.U, sizeof(SR_Uniform) * (P->Uniforms.Count + 1));
+    SR_Uniform *U = &P->Uniforms.U[P->Uniforms.Count];
+    SR_uint id = P->Uniforms.Count;
+    P->Uniforms.Count++;
 
-    GLuint Loc = glGetUniformLocation(S->Program, U->Name);
+    GLuint Loc = glGetUniformLocation(P->glID, Name);
     bool error = SR_GL_error();
     if (!error)
     {
@@ -604,16 +869,18 @@ unsigned long int SR_GenerateUniform(unsigned long int shader_id, char *Name)
         U->Name = (char *)malloc(strlen(Name) + 1);
         strcpy(U->Name, Name);
         U->ID = id;
+        U->Data = Data;
+        U->Count = count;
+        U->Type = Type;
         result = U->ID;
     }
     else
     {
-        S->Uniforms.Count--;
+        P->Uniforms.Count--;
     }
     return result;
 }
-/*
-Load sprite, loads an image file into a sprite that will be added to a texture atlas you create
+/* Load sprite, loads an image file into a sprite that will be added to a texture atlas you create
 it could be animated with custom frames (WOP), it could also be loaded from memory. */
 SR_Sprite *SR_LoadSprite(char *filename, bool animated, int frames)
 {
@@ -628,9 +895,9 @@ SR_Sprite *SR_LoadSprite(char *filename, bool animated, int frames)
     else
     {
 
-        O->Sprites.S = (SR_Sprite *)realloc(O->Sprites.S, sizeof(SR_Sprite) * (O->Sprites.Count + 1));
+        // O->Sprites.S = (SR_Sprite *)realloc(O->Sprites.S, sizeof(SR_Sprite) * (O->Sprites.Count + 1));
         SR_Sprite *Result = &O->Sprites.S[O->Sprites.Count];
-        unsigned long int id = O->Sprites.Count;
+        SR_uint id = O->Sprites.Count;
         O->Sprites.Count++;
 
         Result->PixelsRGBA = Pixels;
@@ -658,7 +925,7 @@ SR_Sprite *SR_LoadSprite(char *filename)
     {
 
         SR_Sprite *Result = &O->Sprites.S[O->Sprites.Count];
-        unsigned long int id = O->Sprites.Count;
+        SR_uint id = O->Sprites.Count;
         O->Sprites.Count++;
 
         Result->PixelsRGBA = Pixels;
@@ -674,7 +941,7 @@ SR_Sprite *SR_LoadSprite(char *filename)
 SR_Sprite *SR_LoadSprite(unsigned char *Data, int w, int h)
 {
     SR_Context *O = &simplyrend_context;
-    O->Sprites.S = (SR_Sprite *)realloc(O->Sprites.S, sizeof(SR_Sprite) * (O->Sprites.Count + 1));
+    // O->Sprites.S = (SR_Sprite *)realloc(O->Sprites.S, sizeof(SR_Sprite) * (O->Sprites.Count + 1));
     SR_Sprite *Result = &O->Sprites.S[O->Sprites.Count];
     memset(Result, 0, sizeof(SR_Sprite));
 
@@ -691,13 +958,22 @@ SR_Sprite *SR_LoadSprite(unsigned char *Data, int w, int h)
     return Result;
 }
 
+// Deletes the texture from VRAM, be careful not to draw sprites that
+// use the texture before deleting it, or after.
+// Does not manipulate the texture array in the context,
+// the respective SR_Texture should not be used after this call.
+void SR_DeleteTexture(SR_Texture *texture)
+{
+    glDeleteTextures(1, &texture->glID);
+}
+
 // generates a new texture, pushes it into the texture array on the heap, and returns its ID
-unsigned long int SR_GenerateTextureAtlas(stbrp_context *context, stbrp_rect *rects, int rectsnum)
+SR_Texture *SR_GenerateTextureAtlas(stbrp_context *context, stbrp_rect *rects, int rectsnum)
 {
     SR_Context *O = &simplyrend_context;
-    O->Textures.T = (SR_Texture *)realloc(O->Textures.T, sizeof(SR_Texture) * (O->Textures.Count + 1));
+    // O->Textures.T = (SR_Texture *)realloc(O->Textures.T, sizeof(SR_Texture) * (O->Textures.Count + 1));
     SR_Texture *Target_texture = &O->Textures.T[O->Textures.Count];
-    unsigned long int ID = O->Textures.Count;
+    SR_uint ID = O->Textures.Count;
     O->Textures.Count++;
 
     unsigned char *PixelsRGBA = (unsigned char *)malloc(sizeof(unsigned char) * context->width * context->height * 4);
@@ -730,10 +1006,10 @@ unsigned long int SR_GenerateTextureAtlas(stbrp_context *context, stbrp_rect *re
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     free(PixelsRGBA);
-    return ID;
+    return Target_texture;
 }
 
-unsigned long int SR_GetCurrentSpriteIndex()
+SR_uint SR_GetCurrentSpriteIndex()
 {
     SR_Context *O = &simplyrend_context;
     return O->Sprites.Count;
@@ -741,7 +1017,7 @@ unsigned long int SR_GetCurrentSpriteIndex()
 // packs sprites from from_index to (i < from_index + count) into one texture
 // and returns texture ID. NOT GLuint id, but the id within the sr context.
 // if count is -1 it will pack all sprites from from_index to the end of the array
-unsigned long int SR_PackSpritesToTexture(int from_index, int count)
+SR_Texture *SR_PackSpritesToTexture(int from_index, int count)
 {
     SR_Context *O = &simplyrend_context;
     SR_Sprite *S = O->Sprites.S;
@@ -779,14 +1055,14 @@ unsigned long int SR_PackSpritesToTexture(int from_index, int count)
     stbrp_node *nodes = (stbrp_node *)malloc(sizeof(stbrp_node) * nodeCount);
     stbrp_init_target(&context, MAX, MAX, nodes, nodeCount);
     stbrp_pack_rects(&context, rects, COUNT);
-    unsigned long int texture_id = SR_GenerateTextureAtlas(&context, rects, COUNT);
+    SR_Texture *texture = SR_GenerateTextureAtlas(&context, rects, COUNT);
 
     for (int i = 0; i < COUNT; i++)
     {
-        S[rects[i].id].texture_id = texture_id;
+        S[rects[i].id].texture = texture;
         S[rects[i].id].x = rects[i].x;
         S[rects[i].id].y = rects[i].y;
-        printf("Sprite %d packed to texture %d at %d,%d\n", rects[i].id, texture_id, rects[i].x, rects[i].y);
+        // printf("Sprite %d packed to texture %d at %d,%d\n", rects[i].id, texture_id, rects[i].x, rects[i].y);
     }
 
     free(rects);
@@ -794,7 +1070,7 @@ unsigned long int SR_PackSpritesToTexture(int from_index, int count)
     for (int i = from_index; i < end; i++)
         free(O->Sprites.S[i].PixelsRGBA);
 
-    return texture_id;
+    return texture;
 }
 
 Emaths::v2 SR_PixelToGL(Emaths::v2 Point)
@@ -1192,13 +1468,17 @@ void SR_BufferLines(const SR_Point *points, int count, SR_Color Color)
 void SR_SpritePre(SR_Sprite *Sprite)
 {
     SR_Context *O = &simplyrend_context;
-    if (Sprite->texture_id != O->Layers.last_tex_id)
+    if (Sprite->texture != O->Layers.last_tex_ptr)
     {
-        if (O->Layers.last_tex_id != -1)
-            SR_PushRenderLayer();
-        O->Layers.L[O->Layers.index].texture_ID = Sprite->texture_id;
+        if (O->Layers.last_tex_ptr != nullptr)
+        {
+            SR_Buffer *target = O->Layers.L[O->Layers.index].Target;
+            SR_PushLayer();
+            O->Layers.L[O->Layers.index].Target = target;
+        }
+        O->Layers.L[O->Layers.index].texture = Sprite->texture;
     }
-    O->Layers.last_tex_id = Sprite->texture_id;
+    O->Layers.last_tex_ptr = Sprite->texture;
 }
 // Pushes a sprite rectangle onto the render queue, mod color modifies the color of the sprite
 void SR_PushSpriteRect(SR_Sprite *Sprite, SR_Rect *SrcRect, SR_Rect *DstRect, SR_Color ModColor)
@@ -1267,7 +1547,7 @@ void SR_SetDrawColor(SR_Color Color)
     O->DrawColor = Color;
 }
 
-//////////////// FRAME /////////////////////////////
+//////////////// framed /////////////////////////////
 // Pushes a rectangle frame onto the render queue, the color determines the color of the rectangle
 // calling this without the color will use the draw color of the context, determined by SR_SetDrawColor()
 void SR_PushRect_Frame(const SR_Rect *Rect, float angle, SR_Color Color)
@@ -1445,6 +1725,7 @@ void SR_PushLines(const SR_Point *points, int count)
 void SR_Clear()
 {
     SR_Context *O = &simplyrend_context;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(O->DrawColor.r, O->DrawColor.g, O->DrawColor.b, O->DrawColor.a);
 }
@@ -1463,19 +1744,34 @@ void SR_Clear(float r, float g, float b, float a)
 void SR_Clip(const SR_Rect *rect)
 {
     SR_Context *O = &simplyrend_context;
-    SR_PushRenderLayer();
+    SR_PushLayer();
     O->Layers.L[O->Layers.index].Clip.rect = *rect;
     O->Layers.L[O->Layers.index].Clip.on = true;
 }
 void SR_EndClip()
 {
-    SR_PushRenderLayer();
+    SR_PushLayer();
+}
+
+void SR_PostProc(SR_Buffer *Origin, SR_Buffer *Target, SR_Program *Program)
+{
+    SR_Context *O = &simplyrend_context;
+    int layer = SR_PushLayer();
+
+    O->Layers.L[layer].PP.on = true;
+    O->Layers.L[layer].PP.Origin = Origin;
+    O->Layers.L[layer].PP.Target = Target;
+    O->Layers.L[layer].PP.Program = Program;
+
+    SR_PushLayer();
 }
 
 void SR_Render()
 {
+    SR_SetTarget(0, true);
+
     SR_Context *O = &simplyrend_context;
-    SR_PushRenderLayer();
+    SR_PushLayer();
 
     glBindBuffer(GL_ARRAY_BUFFER, O->Rects.VBO);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(SR_ObjectRects::glrect) * O->Rects.Count, O->Rects.R);
@@ -1484,20 +1780,30 @@ void SR_Render()
     glBindBuffer(GL_ARRAY_BUFFER, O->TexRects.VBO);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(SR_ObjectRects::glrect) * O->TexRects.Count, O->TexRects.R);
 
-    int count = 0;
-    int data = sizeof(SR_ObjectRects::glrect) * O->Rects.Count +
-               sizeof(SR_ObjectLines::glline) * O->Lines.Count +
-               sizeof(SR_ObjectRects::glrect) * O->TexRects.Count;
+    int drawcalls = 0;
+    SR_uint data = sizeof(SR_ObjectRects::glrect) * O->Rects.Count +
+                   sizeof(SR_ObjectLines::glline) * O->Lines.Count +
+                   sizeof(SR_ObjectRects::glrect) * O->TexRects.Count;
 
     for (int i = 0; i < O->Layers.index; i++)
     {
+        { // setting target buffer
+            if (O->Layers.L[i].Target == nullptr)
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            else
+            {
+                glBindFramebuffer(GL_FRAMEBUFFER, O->Layers.L[i].Target->FBO);
+            }
+        }
+
         glDisable(GL_SCISSOR_TEST);
 
+        // counting rects
         int FilledCount = O->Rects.render_layer_index[i + 1] - O->Rects.render_layer_index[i];
         int FramedCount = O->Lines.render_layer_index[i + 1] - O->Lines.render_layer_index[i];
         int TexturedCount = O->TexRects.render_layer_index[i + 1] - O->TexRects.render_layer_index[i];
 
-        if (O->Layers.L[i].Clip.on)
+        if (O->Layers.L[i].Clip.on) // Clip code
         {
             glEnable(GL_SCISSOR_TEST);
             float scaleratio = (float)O->WindowWidth / O->FrameWidth;
@@ -1509,41 +1815,95 @@ void SR_Render()
             glScissor(x, y, w, h);
         }
 
-        if (TexturedCount)
+        if (O->Layers.L[i].PP.on) // Post processing code
         {
-            glUseProgram(O->Shaders.S[SR_SHADER_TEXTURED].Program);
-            glActiveTexture(GL_TEXTURE0);
-            int texid = O->Layers.L[i].texture_ID;
-            glBindTexture(GL_TEXTURE_2D, O->Textures.T[texid].glID);
-            glBindVertexArray(O->TexRects.VAO);
-            glBindBuffer(GL_ARRAY_BUFFER, O->TexRects.VBO);
-            glDrawArrays(GL_TRIANGLES, O->TexRects.render_layer_index[i] * 6, TexturedCount * 6);
-            count++;
-        }
+            GLuint prog = O->Layers.L[i].PP.Program->glID;
+            SR_Texture *orig_tex = SR_GetBufferText(O->Layers.L[i].PP.Origin);
+            GLuint targ_fbo = SR_GetBufferFBO(O->Layers.L[i].PP.Target);
 
-        if (FilledCount || FramedCount)
-            glUseProgram(O->Shaders.S[SR_SHADER_COLORED].Program);
-        if (FilledCount)
-        {
-            glBindVertexArray(O->Rects.VAO);
-            glBindBuffer(GL_ARRAY_BUFFER, O->Rects.VBO);
-            glDrawArrays(GL_TRIANGLES, O->Rects.render_layer_index[i] * 6, FilledCount * 6);
-            count++;
+            SR_Buffer *TB = O->Layers.L[i].PP.Target;
+            SR_Buffer *OB = O->Layers.L[i].PP.Origin;
+
+            if (TB == nullptr)
+                TB = OB;
+
+            glDisable(GL_DEPTH_TEST);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, targ_fbo);
+            glUseProgram(prog);
+            { // Passing Uniforms
+                SR_Program *P = O->Layers.L[i].PP.Program;
+                for (int u = 0; u < P->Uniforms.Count; u++)
+                {
+                    SR_Uniform *U = &P->Uniforms.U[u];
+                    switch (U->Type)
+                    {
+                    case SR_UNIFORM_INT:
+                        glUniform1iv(U->Location, U->Count, (const GLint *)U->Data);
+                        break;
+                    case SR_UNIFORM_UINT:
+                        glUniform1uiv(U->Location, U->Count, (const GLuint *)U->Data);
+                        break;
+                    case SR_UNIFORM_FLOAT:
+                        glUniform1fv(U->Location, U->Count, (const GLfloat *)U->Data);
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, orig_tex->glID);
+            glBindBuffer(GL_ARRAY_BUFFER, OB->VBO);
+            for (int i = 0; i < 6; i++)
+                TB->Rect.V[i].Z = O->z_index;
+            O->z_index -= (1 << 9);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(SR_ObjectRects::glrect) * 1, &TB->Rect);
+            glBindVertexArray(OB->VAO);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+            drawcalls++;
+            glEnable(GL_DEPTH_TEST);
         }
-        if (FramedCount)
-        {
-            glBindVertexArray(O->Lines.VAO);
-            glBindBuffer(GL_ARRAY_BUFFER, O->Lines.VBO);
-            glDrawArrays(GL_LINES, O->Lines.render_layer_index[i] * 2, FramedCount * 2);
-            count++;
+        else
+        { // draw calls for regular shapes, filled, framed, and textured
+            if (TexturedCount)
+            {
+                glUseProgram(O->Programs.P[SR_SHADER_TEXTURED].glID);
+                glActiveTexture(GL_TEXTURE0);
+                SR_Texture *tex = O->Layers.L[i].texture;
+                glBindTexture(GL_TEXTURE_2D, tex->glID);
+                glBindVertexArray(O->TexRects.VAO);
+                glBindBuffer(GL_ARRAY_BUFFER, O->TexRects.VBO);
+                glDrawArrays(GL_TRIANGLES, O->TexRects.render_layer_index[i] * 6, TexturedCount * 6);
+                drawcalls++;
+            }
+
+            if (FilledCount || FramedCount)
+                glUseProgram(O->Programs.P[SR_SHADER_COLORED].glID);
+            if (FilledCount)
+            {
+                glBindVertexArray(O->Rects.VAO);
+                glBindBuffer(GL_ARRAY_BUFFER, O->Rects.VBO);
+                glDrawArrays(GL_TRIANGLES, O->Rects.render_layer_index[i] * 6, FilledCount * 6);
+                drawcalls++;
+            }
+            if (FramedCount)
+            {
+                glBindVertexArray(O->Lines.VAO);
+                glBindBuffer(GL_ARRAY_BUFFER, O->Lines.VBO);
+                glDrawArrays(GL_LINES, O->Lines.render_layer_index[i] * 2, FramedCount * 2);
+                drawcalls++;
+            }
         }
     }
+    O->Debug.buffered_data_size = data;
+    O->Debug.draw_calls = drawcalls;
 }
 /* Load a font from a file, this is called once per font
 pass in '*sizes' an array of font sizes to account for, and pass 'sizesCont' as the size of the array
 the 'ASCII_start' and  'ASCII_end' determine what range of ASCII letters you want the fonts to cover,
 smaller range means smaller RAM and VRAM usage. */
-unsigned long int SR_LoadFont(char *file, int ASCII_start, int ASCII_end, int *sizes, int sizesCount)
+SR_Font *SR_LoadFont(char *file, int ASCII_start, int ASCII_end, int *sizes, int sizesCount)
 {
     long FileSize;
     unsigned char *fontBuffer;
@@ -1558,7 +1918,7 @@ unsigned long int SR_LoadFont(char *file, int ASCII_start, int ASCII_end, int *s
 
     SR_Context *O = &simplyrend_context;
 
-    O->Fonts.F = (SR_Font *)realloc(O->Fonts.F, sizeof(SR_Font) * (O->Fonts.Count + 1));
+    // O->Fonts.F = (SR_Font *)realloc(O->Fonts.F, sizeof(SR_Font) * (O->Fonts.Count + 1));
     SR_Font *F = &O->Fonts.F[O->Fonts.Count];
     F->ID = O->Fonts.Count;
 
@@ -1613,10 +1973,10 @@ unsigned long int SR_LoadFont(char *file, int ASCII_start, int ASCII_end, int *s
 
     F->Sprite = SR_LoadSprite(PixelsRGBA, W, H);
 
-    return F->ID;
+    return F;
 }
 
-int SR_FindFontSizeIndex(unsigned long int FontID, int size)
+int SR_FindFontSizeIndex(SR_uint FontID, int size)
 {
     SR_Context *O = &simplyrend_context;
     SR_Font *F = &O->Fonts.F[FontID];
@@ -1642,7 +2002,7 @@ int SR_FindFontSizeIndex(unsigned long int FontID, int size)
 // Render a string of text to the screen using a font index (returned when you call SR_LoadFont())
 // the size is ther desired size of the font, as per the defined list of sizes at SR_LoadFont(), if the passed size
 // is not in the list, the next smaller size will be used.
-void SR_PushText(unsigned long int FontID, SR_Color Color, int size, SR_PointF Dest, char *Text, ...)
+void SR_PushText(SR_uint FontID, SR_Color Color, int size, SR_PointF Dest, char *Text, ...)
 {
     char buff[256];
     va_list args;
@@ -1682,21 +2042,29 @@ void SR_PushText(unsigned long int FontID, SR_Color Color, int size, SR_PointF D
     delete[] cstr;
 }
 
+SR_Debug *SR_GetDebug()
+{
+    SR_Context *O = &simplyrend_context;
+    return &O->Debug;
+}
+
 /*
-MIT License
-Copyright (c) 2017 Wassim Alhajomar / Mahmoud Wasim Alhaj Omar. @Wassimulator.
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.*/
+    LICENSE: SimplyRend
+
+    Copyright (c) 2022 Wassim Alhajomar / Mahmoud Wasim Alhaj Omar (@Wassimulator)
+
+    This software is provided "as-is", without any express or implied warranty. In no event
+    will the authors be held liable for any damages arising from the use of this software.
+
+    Permission is granted to anyone to use this software for any purpose, including commercial
+    applications, and to alter it and redistribute it freely, subject to the following restrictions:
+
+        1. The origin of this software must not be misrepresented; you must not claim that you
+        wrote the original software. If you use this software in a product, an acknowledgment
+        in the product documentation would be appreciated but is not required.
+
+        2. Altered source versions must be plainly marked as such, and must not be misrepresented
+        as being the original software.
+
+        3. This notice may not be removed or altered from any source distribution.
+*/
