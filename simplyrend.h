@@ -1,5 +1,11 @@
 /*
-    ## SimplyRend ##
+   _____  _                    __        ____                    __   
+  / ___/ (_)____ ___   ____   / /__  __ / __ \ ___   ____   ____/ /   
+  \__ \ / // __ `__ \ / __ \ / // / / // /_/ // _ \ / __ \ / __  /    
+ ___/ // // / / / / // /_/ // // /_/ // _, _//  __// / / // /_/ /     
+/____//_//_/ /_/ /_// .___//_/ \__, //_/ |_| \___//_/ /_/ \__,_/      
+                   /_/        /____/                                  
+                         
         v1.2
     by: Wassimulator
 
@@ -841,7 +847,12 @@ void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int (*load_openg
             void main()
             {    
 				vec2 uvActual = uv_aa_smoothstep(TexCoords, textureSize(Sampler, 0),1.5);
-				color = texture(Sampler,   uvActual) * TexMod;
+                vec4 T = texture(Sampler,   uvActual);
+                if (TexMod.a != 1)
+				color = vec4(T.a * TexMod.rgb,TexMod.a * T.a);
+                else
+				color = T * TexMod;
+
             }
     )###"};
     SR_CreateProgram(VertexShaders[0], FragmentShaders[0]); // 1st program for colored rendering
@@ -850,11 +861,11 @@ void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int (*load_openg
     SR_CreateTarget(0); // create the default target: the screen
 }
 
-SR_uint SR_GenerateUniform(SR_uint program_id, const char *Name, void *Data, int count, SR_Uniform_type Type)
+SR_uint SR_AttachUniform(SR_Program *program, const char *Name, void *Data, int count, SR_Uniform_type Type)
 {
     SR_uint result = -1;
     SR_Context *O = &simplyrend_context;
-    SR_Program *P = &O->Programs.P[program_id];
+    SR_Program *P = program;
 
     P->Uniforms.U = (SR_Uniform *)realloc(P->Uniforms.U, sizeof(SR_Uniform) * (P->Uniforms.Count + 1));
     SR_Uniform *U = &P->Uniforms.U[P->Uniforms.Count];
@@ -1976,10 +1987,10 @@ SR_Font *SR_LoadFont(char *file, int ASCII_start, int ASCII_end, int *sizes, int
     return F;
 }
 
-int SR_FindFontSizeIndex(SR_uint FontID, int size)
+int SR_FindFontSizeIndex(SR_Font *Font, int size)
 {
     SR_Context *O = &simplyrend_context;
-    SR_Font *F = &O->Fonts.F[FontID];
+    SR_Font *F = Font;
 
     int target = size;
     bool found = false;
@@ -2002,7 +2013,7 @@ int SR_FindFontSizeIndex(SR_uint FontID, int size)
 // Render a string of text to the screen using a font index (returned when you call SR_LoadFont())
 // the size is ther desired size of the font, as per the defined list of sizes at SR_LoadFont(), if the passed size
 // is not in the list, the next smaller size will be used.
-void SR_PushText(SR_uint FontID, SR_Color Color, int size, SR_PointF Dest, char *Text, ...)
+void SR_PushText(SR_Font *Font, SR_Color Color, int size, SR_PointF Dest, char *Text, ...)
 {
     char buff[256];
     va_list args;
@@ -2014,10 +2025,10 @@ void SR_PushText(SR_uint FontID, SR_Color Color, int size, SR_PointF Dest, char 
     strcpy(cstr, String.c_str());
 
     SR_Context *O = &simplyrend_context;
-    SR_Font *F = &O->Fonts.F[FontID];
+    SR_Font *F = Font;
     SR_Sprite *S = F->Sprite;
 
-    size = SR_FindFontSizeIndex(FontID, size);
+    size = SR_FindFontSizeIndex(Font, size);
 
     int x = Dest.x, y = Dest.y;
     for (int i = 0; i < strlen(cstr); i++)
