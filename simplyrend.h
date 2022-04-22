@@ -6,7 +6,7 @@
 /____//_//_/ /_/ /_// .___//_/ \__, //_/ |_| \___//_/ /_/ \____/
                    /_/        /____/
 
-        v1.3
+        v1.4
     by: Wassimulator
 
     Using OpenGL Version: 4.3
@@ -108,6 +108,8 @@ this is till work in progress and bugs may occur, as features get added. It is i
 #define SR_SHADER_COLORED 0
 #define SR_SHADER_TEXTURED 1
 
+#define Z_SHIFT 16
+
 ///////////////////////////////////////////////////////////////////////////////
 // Data structures:
 typedef unsigned long long SR_uint;
@@ -127,7 +129,6 @@ struct SR_Uniform;
 struct SR_Uniforms;
 struct SR_Program;
 struct SR_Programs;
-enum SR_Uniform_type;
 struct SR_Texture;
 struct SR_Textures;
 struct SR_Font;
@@ -389,7 +390,7 @@ typedef struct SR_Context
     int WindowWidth;
     int WindowHeight;
 
-    int z_index = 0;
+    int32_t z_index =  0;
 
     bool startframe = false;
 
@@ -824,7 +825,7 @@ void SR_InitScreenRect()
         Screen.V[i].C.a = 1;
         Screen.V[i].Z = O->z_index;
     }
-    O->z_index -= (1 << 9);
+    O->z_index -= Z_SHIFT;
 
     O->ScreenRect = Screen;
 }
@@ -835,7 +836,7 @@ void SR_InitScreenRect()
  - FrameWidth and FrameHeight are the dimensions of the framebuffer, these should be constant. */
 void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int WindowWidth, int WindowHeight, int (*load_opengl)(void))
 {
-    load_opengl();
+    int loadgl = load_opengl();
     memset(&simplyrend_context, 0, sizeof(SR_Context));
     SR_Context *O = &simplyrend_context;
 
@@ -1125,6 +1126,7 @@ void SR_DeleteSpriteTexture(SR_Sprite *Sprite)
 // generates a new texture, pushes it into the texture array on the heap, and returns a pointer to it
 SR_Texture *SR_GenerateTextureAtlas(stbrp_context *context, stbrp_rect *rects, int rectsnum)
 {
+    //TODO: This function is very inperformant, it should use existing RBA and flip on the GPU
     SR_Context *O = &simplyrend_context;
     // O->Textures.T = (SR_Texture *)realloc(O->Textures.T, sizeof(SR_Texture) * (O->Textures.Count + 1));
     SR_Texture *Target_texture = &O->Textures.T[O->Textures.Count];
@@ -1184,7 +1186,7 @@ SR_Texture *SR_PackSpritesToTexture(int from_index, int count)
     GLint MAX = 8192;
     GLint MAX_GPU = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &MAX_GPU);
-    MAX = min(MAX, MAX_GPU);
+    MAX = MAX < MAX_GPU ? MAX : MAX_GPU;
     O->max_texture_dimension = MAX; // TODO: Variable texture sizes, becuase this is wasteful. Texture size should also be stored in the Texture struct as well
 
     int COUNT = count;
@@ -1283,7 +1285,7 @@ void SR_BufferQuad_Fill(Emaths::v2 A1, Emaths::v2 A2, Emaths::v2 B1, Emaths::v2 
 
         RO->R[RO->Count].V[i].Z = O->z_index;
     }
-    O->z_index -= (1 << 9);
+    O->z_index -= Z_SHIFT;
     RO->Count++;
 }
 void SR_BufferRect_Fill(const SR_RectF *Rect, SR_Color Color, float angle)
@@ -1343,7 +1345,7 @@ void SR_BufferRect_Fill(const SR_RectF *Rect, SR_Color Color, float angle)
 
         RO->R[RO->Count].V[i].Z = O->z_index;
     }
-    O->z_index -= (1 << 9);
+    O->z_index -= Z_SHIFT;
     RO->Count++;
 }
 
@@ -1411,7 +1413,7 @@ void SR_BufferRect_Frame(const SR_RectF *Rect, SR_Color Color, float angle)
             RO->L[RO->Count + i].V[j].Z = O->z_index;
         }
 
-    O->z_index -= (1 << 9);
+    O->z_index -= Z_SHIFT;
     RO->Count += 4;
 }
 
@@ -1500,7 +1502,7 @@ void SR_BufferRect_Font(SR_Font *Font, const SR_RectF *SrcRect, const SR_RectF *
         ROT->R[ROT->Count].V[i].Z = O->z_index;
     }
 
-    O->z_index -= (1 << 9);
+    O->z_index -= Z_SHIFT;
 
     ROT->Count++;
 }
@@ -1589,7 +1591,7 @@ void SR_BufferRect_Texture(SR_Sprite *Sprite, const SR_RectF *SrcRect, const SR_
         ROT->R[ROT->Count].V[i].Z = O->z_index;
     }
 
-    O->z_index -= (1 << 9);
+    O->z_index -= Z_SHIFT;
 
     ROT->Count++;
 }
@@ -1617,7 +1619,7 @@ void SR_BufferLine(int x1, int y1, int x2, int y2, SR_Color Color)
         RO->L[RO->Count].V[j].Z = O->z_index;
     }
 
-    O->z_index -= (1 << 9);
+    O->z_index -= Z_SHIFT;
     RO->Count++;
 }
 void SR_BufferLines(const SR_Point *points, int count, SR_Color Color)
@@ -1649,7 +1651,7 @@ void SR_BufferLines(const SR_Point *points, int count, SR_Color Color)
 
             RO->L[RO->Count].V[j].Z = O->z_index;
         }
-        O->z_index -= (1 << 9);
+        O->z_index -= Z_SHIFT;
         RO->Count++;
     }
 }
@@ -2147,7 +2149,7 @@ void SR_Render()
             glBindBuffer(GL_ARRAY_BUFFER, OB->VBO);
             for (int i = 0; i < 6; i++)
                 TB->Rect.V[i].Z = O->z_index;
-            O->z_index -= (1 << 9);
+            O->z_index -= Z_SHIFT;
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(SR_ObjectRects::glrect) * 1, &TB->Rect);
             glBindVertexArray(OB->VAO);
             glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2309,9 +2311,6 @@ void SR_PushText(SR_Font *Font, SR_Color Color, int size, SR_PointF Dest, char *
     va_start(args, Text);
     vsnprintf(buff, 256, Text, args);
     va_end(args);
-    std::string String = buff;
-    char *cstr = new char[String.length() + 1];
-    strcpy(cstr, String.c_str());
 
     SR_Context *O = &simplyrend_context;
     SR_Font *F = Font;
@@ -2320,10 +2319,10 @@ void SR_PushText(SR_Font *Font, SR_Color Color, int size, SR_PointF Dest, char *
     size = SR_FindFontSizeIndex(Font, size);
 
     int x = Dest.x, y = Dest.y;
-    for (int i = 0; i < strlen(cstr); i++)
+    for (int i = 0; i < strlen(buff); i++)
     {
         SR_RectF Src;
-        int I = cstr[i] - F->First;
+        int I = buff[i] - F->First;
         Src.x = F->CharData[size][I].x0;
         Src.y = F->CharData[size][I].y0;
         Src.w = F->CharData[size][I].x1 - F->CharData[size][I].x0;
@@ -2339,7 +2338,6 @@ void SR_PushText(SR_Font *Font, SR_Color Color, int size, SR_PointF Dest, char *
 
         x += F->CharData[size][I].xadvance;
     }
-    delete[] cstr;
 }
 
 SR_Debug *SR_GetDebug()
