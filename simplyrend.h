@@ -6,7 +6,7 @@
 /____//_//_/ /_/ /_// .___//_/ \__, //_/ |_| \___//_/ /_/ \____/
                    /_/        /____/
 
-        v1.4
+        v1.2
     by: Wassimulator
 
     Using OpenGL Version: 4.3
@@ -108,7 +108,8 @@ this is till work in progress and bugs may occur, as features get added. It is i
 #define SR_SHADER_COLORED 0
 #define SR_SHADER_TEXTURED 1
 
-#define Z_SHIFT 16
+float Z_SHIFT = 0.00001f;
+float Z_START = 0.0f;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Data structures:
@@ -204,7 +205,7 @@ typedef struct SR_Vertex
     Emaths::v2 P;
     Emaths::v2 UV;
     SR_Color C;
-    int32_t Z;
+    float Z;
 } SR_Vertex;
 
 typedef struct SR_ObjectRects
@@ -280,11 +281,10 @@ typedef enum SR_Uniform_type
 
 typedef struct SR_Uniform
 {
-    char *Name;
     void *Data;
     int Count;
     SR_Uniform_type Type;
-    GLuint Location;
+    GLint Location;
     SR_uint ID;
 } SR_Uniform;
 
@@ -356,7 +356,8 @@ typedef struct SR_Target
     GLuint VAO;
 
     GLuint FBO;
-    SR_Sprite *Sprite;
+    SR_Sprite *Sprite_color;
+    SR_Sprite *Sprite_depth;
     SR_or::glrect Rect;
     bool DoNotTouch = false;
     int ID;
@@ -390,7 +391,7 @@ typedef struct SR_Context
     int WindowWidth;
     int WindowHeight;
 
-    int32_t z_index =  0;
+    float z_index = Z_START;
 
     bool startframe = false;
 
@@ -505,23 +506,34 @@ SR_Target *SR_CreateTarget(SR_RectF *Rect)
 {
     SR_Context *O = &simplyrend_context;
 
-    SR_Sprite *S = &O->Sprites.S[O->Sprites.Count];
+    SR_Sprite *S_color = &O->Sprites.S[O->Sprites.Count];
     int sprite_id = O->Sprites.Count;
+    O->Sprites.Count++;
+    SR_Sprite *S_Depth = &O->Sprites.S[O->Sprites.Count];
+    int sprite_id_depth = O->Sprites.Count;
 
     SR_Target *B = &O->Buffers.B[O->Buffers.Count];
     int target_id = O->Buffers.Count;
 
-    SR_Texture *Target_texture = &O->Textures.T[O->Textures.Count];
+    SR_Texture *Target_texture_color = &O->Textures.T[O->Textures.Count];
     int texture_id = O->Textures.Count;
+    O->Textures.Count++;
+    SR_Texture *Target_texture_depth = &O->Textures.T[O->Textures.Count];
+    int texture_id_depth = O->Textures.Count;
 
     // Target has a pointer to a sprite which has a texture id of the target.
     // Target --> Sprite --> Texture_ID
     // TODO: Rects don't really need to be stored on the stack, they can be generated in the SR_Render call, or even in the vertex shader (pro mode)
 
-    B->Sprite = S;
+    B->Sprite_color = S_color;
+    B->Sprite_depth = S_Depth;
     B->ID = target_id;
-    S->ID = sprite_id;
-    S->texture = Target_texture;
+
+    S_color->ID = sprite_id;
+    S_color->texture = Target_texture_color;
+    S_Depth->ID = sprite_id_depth;
+    S_Depth->texture = Target_texture_depth;
+
     B->DoNotTouch = false;
     float x, y, w, h;
     if (Rect)
@@ -549,8 +561,8 @@ SR_Target *SR_CreateTarget(SR_RectF *Rect)
     {
         w = O->WindowWidth;
         h = O->WindowHeight;
-        S->w = w;
-        S->h = h;
+        S_color->w = w;
+        S_color->h = h;
         B->Rect = O->ScreenRect;
     }
 
@@ -568,21 +580,33 @@ SR_Target *SR_CreateTarget(SR_RectF *Rect)
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, C));
         glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 1, GL_INT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
+        glVertexAttribPointer(2, 1, GL_FLOAT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
         glBufferData(GL_ARRAY_BUFFER, sizeof(SR_ObjectRects::glrect) * 1, NULL, GL_STREAM_DRAW);
 
         glGenFramebuffers(1, &B->FBO);
-        glGenTextures(1, &Target_texture->glID);
         glBindFramebuffer(GL_FRAMEBUFFER, B->FBO);
-        glBindTexture(GL_TEXTURE_2D, Target_texture->glID);
+
+        glGenTextures(1, &Target_texture_color->glID);
+        glBindTexture(GL_TEXTURE_2D, Target_texture_color->glID);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, Target_texture->glID, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, Target_texture_color->glID, 0);
+
+        glGenTextures(1, &Target_texture_depth->glID);
+        glBindTexture(GL_TEXTURE_2D, Target_texture_depth->glID);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Target_texture_depth->glID, 0);
+
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
             success = true;
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         // TODO: write an SR_CreateTexture function that takes care of this for you
         // idea: pool allocation: http://www.gingerbill.org/article/2019/02/16/memory-allocation-strategies-004/
@@ -611,7 +635,7 @@ SR_Target *SR_CreateTargetForSprite(SR_Sprite *Sprite)
     // Target has a pointer to a sprite which has a texture id of the target.
     // Target --> Sprite --> Texture_ID
 
-    B->Sprite = S;
+    B->Sprite_color = S;
     B->DoNotTouch = true;
     B->ID = target_id;
     {
@@ -641,7 +665,7 @@ SR_Target *SR_CreateTargetForSprite(SR_Sprite *Sprite)
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, C));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 1, GL_INT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
     glBufferData(GL_ARRAY_BUFFER, sizeof(SR_ObjectRects::glrect) * 1, NULL, GL_STREAM_DRAW);
 
     glGenFramebuffers(1, &B->FBO);
@@ -665,8 +689,9 @@ void SR_DestroyTarget(SR_Target *Target)
     glDeleteBuffers(1, &Target->VBO);
     if (!Target->DoNotTouch)
     {
-        glDeleteTextures(1, &Target->Sprite->texture->glID);
-        O->Debug.estimated_VRAM -= O->max_texture_dimension *  O->max_texture_dimension * 4;
+        glDeleteTextures(1, &Target->Sprite_color->texture->glID);
+        glDeleteTextures(1, &Target->Sprite_depth->texture->glID);
+        O->Debug.estimated_VRAM -= O->max_texture_dimension * O->max_texture_dimension * 4;
     }
     O->Buffers.Count--;
 }
@@ -685,7 +710,7 @@ SR_Texture *SR_GetBufferText(SR_Target *Target)
     if (Target != 0)
     {
         SR_Context *O = &simplyrend_context;
-        result = Target->Sprite->texture;
+        result = Target->Sprite_color->texture;
     }
     return result;
 }
@@ -760,7 +785,7 @@ void SR_StartFrame(int WindowWidth, int WindowHeight)
     O->Rects.Count = 0;
     O->TexRects.Count = 0;
     O->Lines.Count = 0;
-    O->z_index = 1 << 15;
+    O->z_index = Z_START;
     O->Layers.index = 0;
     O->Layers.last_tex_ptr = nullptr;
 
@@ -781,12 +806,19 @@ void SR_StartFrame(int WindowWidth, int WindowHeight)
             SR_Target *B = &O->Buffers.B[i];
             if (B->DoNotTouch)
                 continue;
-            glBindTexture(GL_TEXTURE_2D, B->Sprite->texture->glID);
-            O->Debug.estimated_VRAM -= B->Sprite->w * B->Sprite->h * 4;
+            glBindTexture(GL_TEXTURE_2D, B->Sprite_color->texture->glID);
+            O->Debug.estimated_VRAM -= B->Sprite_color->w * B->Sprite_color->h * 4;
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WindowWidth, WindowHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-            B->Sprite->w = WindowWidth;
-            B->Sprite->h = WindowHeight;
-            O->Debug.estimated_VRAM += B->Sprite->w * B->Sprite->h * 4;
+            B->Sprite_color->w = WindowWidth;
+            B->Sprite_color->h = WindowHeight;
+
+            glBindTexture(GL_TEXTURE_2D, B->Sprite_depth->texture->glID);
+            O->Debug.estimated_VRAM -= B->Sprite_depth->w * B->Sprite_depth->h * 4;
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, WindowWidth, WindowHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+            B->Sprite_depth->w = WindowWidth;
+            B->Sprite_depth->h = WindowHeight;
+
+            O->Debug.estimated_VRAM += B->Sprite_color->w * B->Sprite_color->h * 4;
         }
     }
 
@@ -877,7 +909,7 @@ void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int WindowWidth,
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, C));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 1, GL_INT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
     glBufferData(GL_ARRAY_BUFFER, sizeof(SR_ObjectRects::glrect) * MaxRects, NULL, GL_STREAM_DRAW);
 
     glGenVertexArrays(1, &O->Lines.VAO);
@@ -889,7 +921,7 @@ void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int WindowWidth,
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, C));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 1, GL_INT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
     glBufferData(GL_ARRAY_BUFFER, sizeof(SR_ObjectLines::glline) * MaxRects, NULL, GL_STREAM_DRAW);
 
     glGenVertexArrays(1, &O->TexRects.VAO);
@@ -901,7 +933,7 @@ void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int WindowWidth,
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, C));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 1, GL_INT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_TRUE, sizeof(SR_Vertex), (void *)offsetof(SR_Vertex, Z));
     glBufferData(GL_ARRAY_BUFFER, sizeof(SR_ObjectRects::glrect) * MaxRects, NULL, GL_STREAM_DRAW);
 
     // create the default shaders:
@@ -988,7 +1020,8 @@ void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int WindowWidth,
 			}
             void main()
             {    
-				vec2 uvActual = uv_aa_smoothstep(TexCoords, textureSize(Sampler, 0),1.5);
+				// vec2 uvActual = uv_aa_smoothstep(TexCoords, textureSize(Sampler, 0),1.5);
+				vec2 uvActual = TexCoords;
                 vec4 T = texture(Sampler,   uvActual);
                 if (TexMod.a != 1)
 				color = vec4(T.a * TexMod.rgb,TexMod.a * T.a);
@@ -1003,7 +1036,7 @@ void SR_Init(SR_uint MaxRects, int FrameWidth, int FrameHeight, int WindowWidth,
     SR_CreateTarget(0); // create the default target: the screen
 }
 
-SR_uint SR_AttachUniform(SR_Program *program, const char *Name, void *Data, int count, SR_Uniform_type Type)
+SR_uint SR_AttachUniform(SR_Program *program, GLint Location, void *Data, int count, SR_Uniform_type Type)
 {
     SR_uint result = -1;
     SR_Context *O = &simplyrend_context;
@@ -1014,23 +1047,13 @@ SR_uint SR_AttachUniform(SR_Program *program, const char *Name, void *Data, int 
     SR_uint id = P->Uniforms.Count;
     P->Uniforms.Count++;
 
-    GLuint Loc = glGetUniformLocation(P->glID, Name);
-    bool error = SR_GL_error();
-    if (!error)
-    {
-        U->Location = Loc;
-        U->Name = (char *)malloc(strlen(Name) + 1);
-        strcpy(U->Name, Name);
-        U->ID = id;
-        U->Data = Data;
-        U->Count = count;
-        U->Type = Type;
-        result = U->ID;
-    }
-    else
-    {
-        P->Uniforms.Count--;
-    }
+    U->Location = Location;
+    U->ID = id;
+    U->Data = Data;
+    U->Count = count;
+    U->Type = Type;
+    result = U->ID;
+
     return result;
 }
 /* Load sprite, loads an image file into a sprite that will be added to a texture atlas you create
@@ -1076,10 +1099,40 @@ SR_Sprite *SR_LoadSprite(char *filename)
     }
     else
     {
-
         SR_Sprite *Result = &O->Sprites.S[O->Sprites.Count];
         SR_uint id = O->Sprites.Count;
         O->Sprites.Count++;
+
+        Result->PixelsRGBA = Pixels;
+        Result->frames = 0;
+        Result->frame_i = 0;
+        Result->animated = false;
+        Result->ModColor = {1.0f, 1.0f, 1.0f, 1.0f};
+        Result->ID = id;
+    }
+
+    return Result;
+}
+SR_Sprite *SR_LoadSprite_Memory(char *refname, uint8_t *Data, uint64_t size)
+{
+    SR_Context *O = &simplyrend_context;
+    SR_Sprite *Result = &O->Sprites.S[O->Sprites.Count];
+    int x, y, n;
+    unsigned char *Pixels = stbi_load_from_memory(Data, size, &x, &y, &n, 4);
+    // std::cout << stbi_failure_reason() << std::endl;
+
+    if (Pixels == NULL)
+    {
+        std::cerr << "Error loading image: " << refname << std::endl;
+    }
+    else
+    {
+        SR_Sprite *Result = &O->Sprites.S[O->Sprites.Count];
+        SR_uint id = O->Sprites.Count;
+        O->Sprites.Count++;
+
+        Result->w = x;
+        Result->h = y;
 
         Result->PixelsRGBA = Pixels;
         Result->frames = 0;
@@ -1118,7 +1171,7 @@ SR_Sprite *SR_LoadSprite(unsigned char *Data, int w, int h)
 void SR_DeleteSpriteTexture(SR_Sprite *Sprite)
 {
     SR_Context *O = &simplyrend_context;
-    O->Debug.estimated_VRAM -=  O->max_texture_dimension *  O->max_texture_dimension * 4;
+    O->Debug.estimated_VRAM -= O->max_texture_dimension * O->max_texture_dimension * 4;
 
     glDeleteTextures(1, &Sprite->texture->glID);
 }
@@ -1126,7 +1179,7 @@ void SR_DeleteSpriteTexture(SR_Sprite *Sprite)
 // generates a new texture, pushes it into the texture array on the heap, and returns a pointer to it
 SR_Texture *SR_GenerateTextureAtlas(stbrp_context *context, stbrp_rect *rects, int rectsnum)
 {
-    //TODO: This function is very inperformant, it should use existing RBA and flip on the GPU
+    // TODO: This function is very inperformant, it should use existing RBA and flip on the GPU
     SR_Context *O = &simplyrend_context;
     // O->Textures.T = (SR_Texture *)realloc(O->Textures.T, sizeof(SR_Texture) * (O->Textures.Count + 1));
     SR_Texture *Target_texture = &O->Textures.T[O->Textures.Count];
@@ -1156,6 +1209,7 @@ SR_Texture *SR_GenerateTextureAtlas(stbrp_context *context, stbrp_rect *rects, i
     glGenTextures(1, &Target_texture->glID);
     glBindTexture(GL_TEXTURE_2D, Target_texture->glID);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, context->width, context->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, PixelsRGBA);
+    glGenerateMipmap(GL_TEXTURE_2D);
 
     O->Debug.estimated_VRAM += context->width * context->height * 4;
 
@@ -1163,6 +1217,9 @@ SR_Texture *SR_GenerateTextureAtlas(stbrp_context *context, stbrp_rect *rects, i
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     free(PixelsRGBA);
     return Target_texture;
@@ -2048,8 +2105,8 @@ void SR_Render()
             else
             {
                 glBindFramebuffer(GL_FRAMEBUFFER, O->Layers.L[i].Target->FBO);
-                Render_W = O->Layers.L[i].Target->Sprite->w;
-                Render_H = O->Layers.L[i].Target->Sprite->h;
+                Render_W = O->Layers.L[i].Target->Sprite_color->w;
+                Render_H = O->Layers.L[i].Target->Sprite_color->h;
             }
         }
         if (O->Layers.L[i].NoAspectFix)
@@ -2116,11 +2173,12 @@ void SR_Render()
                 TB = OB;
 
             glDisable(GL_DEPTH_TEST);
+            // glEnable(GL_DEPTH_TEST);
 
             glBindFramebuffer(GL_FRAMEBUFFER, targ_fbo);
             glUseProgram(prog);
             { // Passing Uniforms
-                glUniform2f(0, Scale.x, Scale.y);
+                glUniform2f(0, Scale.x, Scale.y); //TODO: these Locations need to be reserved
                 glUniform1f(1, Logical_W);
                 glUniform1f(2, Logical_H);
 
@@ -2144,14 +2202,19 @@ void SR_Render()
                     }
                 }
             }
+            GLint TextureUnifrom = glGetUniformLocation(prog, "Texture");
+            glUniform1i(TextureUnifrom, 0);
+
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, orig_tex->glID);
+
             glBindBuffer(GL_ARRAY_BUFFER, OB->VBO);
             for (int i = 0; i < 6; i++)
                 TB->Rect.V[i].Z = O->z_index;
             O->z_index -= Z_SHIFT;
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(SR_ObjectRects::glrect) * 1, &TB->Rect);
             glBindVertexArray(OB->VAO);
+
             glDrawArrays(GL_TRIANGLES, 0, 6);
             drawcalls++;
             glEnable(GL_DEPTH_TEST);
@@ -2201,22 +2264,9 @@ void SR_Render()
     O->Debug.buffered_vertex_data_size = data;
     O->Debug.draw_calls = drawcalls;
 }
-/* Load a font from a file, this is called once per font
-pass in '*sizes' an array of font sizes to account for, and pass 'sizesCont' as the size of the array
-the 'ASCII_start' and  'ASCII_end' determine what range of ASCII letters you want the fonts to cover,
-smaller range means smaller RAM and VRAM usage. */
-SR_Font *SR_LoadFont(char *file, int ASCII_start, int ASCII_end, int *sizes, int sizesCount)
-{
-    long FileSize;
-    unsigned char *fontBuffer;
 
-    FILE *fontFile = fopen(file, "rb");
-    fseek(fontFile, 0, SEEK_END);
-    FileSize = ftell(fontFile);
-    fseek(fontFile, 0, SEEK_SET);
-    fontBuffer = (unsigned char *)malloc(FileSize);
-    fread(fontBuffer, FileSize, 1, fontFile);
-    fclose(fontFile);
+SR_Font *SR_load_font_to_sprite(unsigned char *fontBuffer, int ASCII_start, int ASCII_end, int *sizes, int sizesCount)
+{
 
     SR_Context *O = &simplyrend_context;
 
@@ -2276,6 +2326,32 @@ SR_Font *SR_LoadFont(char *file, int ASCII_start, int ASCII_end, int *sizes, int
     F->Sprite = SR_LoadSprite(PixelsRGBA, W, H);
 
     return F;
+}
+
+/* Load a font from a file, this is called once per font
+pass in '*sizes' an array of font sizes to account for, and pass 'sizesCont' as the size of the array
+the 'ASCII_start' and  'ASCII_end' determine what range of ASCII letters you want the fonts to cover,
+smaller range means smaller RAM and VRAM usage. */
+SR_Font *SR_LoadFont(char *file, int ASCII_start, int ASCII_end, int *sizes, int sizesCount)
+{
+    int FileSize;
+    unsigned char *fontBuffer = nullptr;
+
+    FILE *fontFile = fopen(file, "rb");
+    fseek(fontFile, 0, SEEK_END);
+    FileSize = ftell(fontFile);
+    fseek(fontFile, 0, SEEK_SET);
+    fontBuffer = (unsigned char *)malloc(FileSize);
+    fread(fontBuffer, FileSize, 1, fontFile);
+    fclose(fontFile);
+
+    SR_Font *F = SR_load_font_to_sprite(fontBuffer, ASCII_start, ASCII_end, sizes, sizesCount);
+    return F;
+}
+
+SR_Font *SR_LoadFontMemory(unsigned char *data, int ASCII_start, int ASCII_end, int *sizes, int sizesCount)
+{
+    return SR_load_font_to_sprite(data, ASCII_start, ASCII_end, sizes, sizesCount);
 }
 
 int SR_FindFontSizeIndex(SR_Font *Font, int size)
