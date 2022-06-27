@@ -2179,8 +2179,8 @@ void SR_Render()
             glUseProgram(prog);
             { // Passing Uniforms
                 glUniform2f(0, Scale.x, Scale.y); //TODO: these Locations need to be reserved
-                glUniform1f(1, Logical_W);
-                glUniform1f(2, Logical_H);
+                // glUniform1f(1, Logical_W);
+                // glUniform1f(2, Logical_H);
 
                 SR_Program *P = O->Layers.L[i].PP.Program;
                 for (int u = 0; u < P->Uniforms.Count; u++)
