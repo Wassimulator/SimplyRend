@@ -1,7 +1,7 @@
   # SimplyRend
     by: Wassimulator
     
-    ![alt text](https://raw.githubusercontent.com/Wassimulator/SimplyRend/master/simplyrend.jpg)
+   ![alt text](https://raw.githubusercontent.com/Wassimulator/SimplyRend/master/simplyrend.jpg)
 
     Using OpenGL Version: 4.3
     A simple lightweight immediate mode renderer for 2D graphics, written in C and OpenGL.
