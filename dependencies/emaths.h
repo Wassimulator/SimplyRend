@@ -15,9 +15,11 @@ namespace Emaths
 {
     float clamp(float input, float min, float max);
     int rand_range(int min, int max);
+    uint64_t rand_XOR();
     inline double random_double();
     inline double random_double(double min, double max);
     struct v2;
+    struct RandState;
     float v2_distance_2Points(v2 A, v2 B);
     v2 unitvec_AtoB(v2 A, v2 B);
     float signed_angle_v2(v2 A, v2 B);
@@ -41,10 +43,34 @@ float Emaths::clamp(float input, float min, float max)
     else
         return input;
 }
+
+struct Emaths::RandState
+{
+    uint64_t seed;
+    bool initialized = false;
+};
+Emaths::RandState RANDSTATE;
+
+uint64_t Emaths::rand_XOR()
+{
+    if (!RANDSTATE.initialized)
+    {
+        RANDSTATE.seed = time(NULL);
+        RANDSTATE.initialized = true;
+    }
+    uint64_t x = RANDSTATE.seed;
+    x ^= x << 9;
+    x ^= x >> 5;
+    x ^= x << 15;
+    return RANDSTATE.seed = x;
+}
 int Emaths::rand_range(int min, int max)
 {
-    return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+    // return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+    return min + Emaths::rand_XOR() % (max - min + 1);
+    // return (float)rand()/ RAND_MAX * (max - min + 1) + min;
 }
+
 inline double Emaths::random_double()
 {
     // Returns a random real in [0,1).
@@ -67,8 +93,8 @@ struct Emaths::v2
         };
     };
 
-    Emaths::v2() : e{0, 0} {}
-    Emaths::v2(float e0, float e1) : e{e0, e1} {}
+    v2() : e{0, 0} {}
+    v2(float e0, float e1) : e{e0, e1} {}
 
     Emaths::v2 operator-() const { return Emaths::v2(-e[0], -e[1]); }
     float operator[](int i) const { return e[i]; }
@@ -281,4 +307,14 @@ static float Emaths::perpdot(Emaths::v2 A, Emaths::v2 B)
 static bool operator==(Emaths::v2 A, Emaths::v2 B)
 {
     return A.x == B.x && A.y == B.y;
+}
+
+static float abso(float F)
+{
+    return F > 0 ? F : -F;
+};
+
+static Emaths::v2 rand_vector(float length)
+{
+    return Emaths::v2(Emaths::rand_range(-100, 100) *0.01f *length, Emaths::rand_range(-100, 100) *0.01f *length);
 }
