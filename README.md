@@ -25,14 +25,14 @@
     - Call SR_StartFrame() at the beginning of each frame.
     - SimplyRend does not create window contexts, the user should
       handle that with SDL, or otherwise.
-    - Use floating point color convension (0.0 to 1.0) for each value,
+    - Use floating point color convention (0.0 to 1.0) for each value,
       otherwise use SR_Color_i(r, g, b, a) to convert to floating point colors.
     - the first two shader programs are reserved for rendering basic shapes
       and textured quads.
     - FrameWidth and FrameHeight are the draw logic size, not the window size.
       They are preferably set at the start and never changed during the program.
-    - WindwWidth and WindowHeight are the window size, they can be changed at any time.
-      The distinction is there to allow for window resizing while maintaining realtive
+    - WindowWidth and WindowHeight are the window size, they can be changed at any time.
+      The distinction is there to allow for window resizing while maintaining relative
       positions.
     - you need to handle displaying the frame, whether with SDL or otherwise, Window management
       is not included in SimplyRend.
@@ -40,7 +40,7 @@
 ## Usage:
 
     # relevant front end functions:
-        - SR_Init()                     // initilizes the library
+        - SR_Init()                     // initializes the library
         - SR_StartFrame()               // starts a new frame
         - SR_LoadFont()                 // loads a font
         - SR_LoadSprite()               // loads a sprite
@@ -66,8 +66,8 @@
       The texture ID info will be stored in the sprite struct. But unless you plan on
       manipulating the behavior, you can ignore this.
     - Load fonts at the start of the program with SR_LoadFont()
-    - Render Functions buffer render data on the RAM and the render Call in the end of the
-      frame sends it to the GPU. Immediate mode.
+    - Render functions buffer the render data in RAM; the render call sends it to the GPU at the end of the
+      frame. Immediate mode.
       Render functions have multiple versions and can accept different parameters.
 
     - custom shader creation is still in development.
@@ -75,4 +75,4 @@
 All relative functions and structs start with the prefix "SR_"
 All Render related functions start with the prefix "SR_Push"
 
-this is till work in progress and bugs may occur, as features get added. It is in a running state though.
+this is still a work in progress and bugs may occur, as features get added. It is in a running state though.
